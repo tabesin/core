@@ -21,7 +21,10 @@
  */
 namespace TestHelpers;
 
+use GuzzleHttp\BatchResults;
 use GuzzleHttp\Message\ResponseInterface;
+use GuzzleHttp\Client;
+use GuzzleHttp\Pool;
 
 /**
  * Helper to make requests to the OCS API
@@ -52,5 +55,48 @@ class OcsApiHelper {
 		$fullUrl .= "ocs/v{$ocsApiVersion}.php" . $path;
 
 		return HttpRequestHelper::sendRequest($fullUrl, $method, $user, $password, $headers, $body);
+	}
+
+	/**
+	 * @param string $baseUrl
+	 * @param string $user if set to null no authentication header will be sent
+	 * @param string $password
+	 * @param string $method HTTP Method
+	 * @param string|array $path
+	 * @param array $body array of key, value pairs e.g ['value' => 'yes']
+	 * @param int $ocsApiVersion (1|2) default 2
+	 * @param array $headers
+	 *
+	 * @return BatchResults
+	 * @throws \Exception
+	 */
+	public static function sendBatchRequest(
+		$baseUrl, $user, $password, $method, $path, $body = [], $ocsApiVersion = 2, $headers = []
+	) {
+		$client = new Client();
+		$requests = [];
+		if (\is_array($path)) {
+			if (\count($body) >= 1 && \count($body) !== \count($path)) {
+				throw new \Exception('The path and body do not match.');
+			}
+			$count = \count($path);
+		} elseif (\count($body) >= 1) {
+			$count = \count($body);
+			$paths = \array_fill(0, \count($body), $path);
+			$path = $paths;
+		} else {
+			throw new \Exception('The path and body do not match.');
+		}
+		for ($index = 0; $index != $count; $index++) {
+			$fullUrl = $baseUrl;
+			if (\substr($fullUrl, -1) !== '/') {
+				$fullUrl .= '/';
+			}
+			$fullUrl .= "ocs/v{$ocsApiVersion}.php" . $path[$index];
+			$reqBody = isset($body[$index]) ? $body[$index] : null;
+			$request = HttpRequestHelper::createRequest($fullUrl, $method, $user, $password, $headers, $reqBody);
+			\array_push($requests, $request);
+		}
+		return Pool::batch($client, $requests);
 	}
 }

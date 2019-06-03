@@ -21,6 +21,7 @@
  */
 namespace TestHelpers;
 
+use GuzzleHttp\BatchResults;
 use GuzzleHttp\Message\ResponseInterface;
 
 /**
@@ -30,7 +31,7 @@ use GuzzleHttp\Message\ResponseInterface;
  *
  */
 class UserHelper {
-	
+
 	/**
 	 * @param string $baseUrl
 	 * @param string $user
@@ -99,6 +100,39 @@ class UserHelper {
 			"PUT",
 			"/cloud/users/" . $user,
 			["key" => $key, "value" => $value],
+			$ocsApiVersion
+		);
+	}
+
+	/**
+	 *
+	 * @param string $baseUrl
+	 * @param array $editData ['userid' => '', 'key' => '', 'value' => '']
+	 * @param string $adminUser
+	 * @param string $adminPassword
+	 * @param int $ocsApiVersion
+	 *
+	 * @return BatchResults
+	 */
+	public static function editUserBatch(
+		$baseUrl, $editData, $adminUser, $adminPassword, $ocsApiVersion = 2
+	) {
+		$requestBodies = [];
+		$paths = [];
+		foreach ($editData as $data) {
+			\array_push($paths, "/cloud/users/" . $data['user']);
+			\array_push(
+				$requestBodies,
+				["key" => $data['key'], 'value' => $data["value"]]
+			);
+		}
+		return OcsApiHelper::sendBatchRequest(
+			$baseUrl,
+			$adminUser,
+			$adminPassword,
+			"PUT",
+			$paths,
+			$requestBodies,
 			$ocsApiVersion
 		);
 	}

@@ -7,9 +7,11 @@ Feature: accept/decline shares coming from internal users
   Background:
     Given using OCS API version "1"
     And using new DAV path
-    And user "user0" has been created with default attributes
-    And user "user1" has been created with default attributes
-    And user "user2" has been created with default attributes
+    And these users have been created with default attributes using batch action:
+      | username |
+      | user0	 |
+      | user1    |
+      | user2    |
     And group "grp1" has been created
     And user "user1" has been added to group "grp1"
     And user "user2" has been added to group "grp1"

@@ -6,8 +6,11 @@ Feature: sharing
 
   Background:
     Given using old DAV path
-    And user "user0" has been created with default attributes
-    And user "user1" has been created with default attributes
+    And these users have been created with default attributes using batch action:
+      | username |
+      | user0    |
+      | user1    |
+      | user2    |
 
   @smokeTest
   Scenario Outline: user tries to share a file with another user when the sharing api has been disabled

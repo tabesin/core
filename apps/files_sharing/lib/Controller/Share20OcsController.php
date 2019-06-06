@@ -852,6 +852,13 @@ class Share20OcsController extends OCSController {
 				$share->getNode()->unlock(ILockingProvider::LOCK_SHARED);
 				return new Result(null, 400, $this->l->t('Wrong or no update parameter given'));
 			} else {
+				if ($share->getShareType() === Share::SHARE_TYPE_USER) {
+					$userObject = $this->userSession->getUser();
+					if (($share->getPermissions() < $permissions) &&
+						($userObject !== null) && ($userObject->getUID() !== $share->getShareOwner())) {
+						return new Result(null, 400, 'Cannot change permission of ' . $share->getTarget());
+					}
+				}
 				$permissions = (int)$permissions;
 				$share->setPermissions($permissions);
 			}
@@ -868,7 +875,10 @@ class Share20OcsController extends OCSController {
 					$maxPermissions |= $incomingShare->getPermissions();
 				}
 
-				if ($share->getPermissions() & ~$maxPermissions) {
+				if (($share->getPermissions() & ~$maxPermissions) &&
+					//A condition where the user belongs to the same group which requests this update should be ignored
+					!(($share->getShareType() === Share::SHARE_TYPE_GROUP) &&
+						($this->groupManager->isInGroup($this->userSession->getUser()->getUID(), $share->getSharedWith()) === true))) {
 					$share->getNode()->unlock(ILockingProvider::LOCK_SHARED);
 					return new Result(null, 404, $this->l->t('Cannot increase permissions'));
 				}

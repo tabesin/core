@@ -2261,6 +2261,133 @@ class Share20OcsControllerTest extends TestCase {
 		$this->assertEquals($expected->getData(), $result->getData());
 	}
 
+	public function providesDataUserGroupCanUpdate() {
+		return [
+			[true],
+			[false]
+		];
+	}
+
+	/**
+	 * @dataProvider providesDataUserGroupCanUpdate
+	 * @param string $userBelongsToGroup
+	 */
+	public function testUpdatePermissionForUsersBelongToGroupShare($userBelongsToGroup) {
+		$ocs = $this->mockFormatShare();
+
+		$folder = $this->createMock(Folder::class);
+
+		$share = \OC::$server->getShareManager()->newShare();
+		$share
+			->setId(42)
+			->setSharedBy($this->currentUser->getUID())
+			->setShareOwner('anotheruser')
+			->setShareType(Share::SHARE_TYPE_GROUP)
+			->setSharedWith('group1')
+			->setPermissions(\OCP\Constants::PERMISSION_READ)
+			->setNode($folder);
+
+		// note: updateShare will modify the received instance but getSharedWith will reread from the database,
+		// so their values will be different
+		$incomingShare = \OC::$server->getShareManager()->newShare();
+		$incomingShare
+			->setId(42)
+			->setSharedBy($this->currentUser->getUID())
+			->setShareOwner('anotheruser')
+			->setShareType(Share::SHARE_TYPE_GROUP)
+			->setSharedWith('group1')
+			->setPermissions(\OCP\Constants::PERMISSION_READ)
+			->setNode($folder);
+
+		$this->request
+			->method('getParam')
+			->will($this->returnValueMap([
+				['permissions', null, '31'],
+			]));
+
+		$this->shareManager->method('getShareById')->with('ocinternal:42')->willReturn($share);
+
+		$this->shareManager->expects($this->any())
+			->method('getSharedWith')
+			->will($this->returnValueMap([
+				['currentUser', Share::SHARE_TYPE_USER, $share->getNode(), -1, 0, []],
+				['currentUser', Share::SHARE_TYPE_GROUP, $share->getNode(), -1, 0, [$incomingShare]]
+			]));
+
+		$this->groupManager->method('isInGroup')
+			->willReturn($userBelongsToGroup);
+
+		if ($userBelongsToGroup === true) {
+			$this->shareManager->method('updateShare')
+				->willReturn($share);
+		} else {
+			$this->shareManager->expects($this->never())
+				->method('updateShare');
+		}
+
+		if ($userBelongsToGroup === true) {
+			$expected = new Result();
+		} else {
+			$expected = new Result(null, 404, 'Cannot increase permissions');
+		}
+		$result = $ocs->updateShare(42);
+
+		$this->assertEquals($expected->getMeta(), $result->getMeta());
+		$this->assertEquals($expected->getData(), $result->getData());
+	}
+
+	public function providesDataForTestingIncreasePermissionRegularShare() {
+		return [
+			['file', 16, 17],
+			['file', 17, 19],
+			['folder', 17, 19],
+			['folder', 19, 21],
+			['folder', 21, 23],
+		];
+	}
+
+	/**
+	 * @dataProvider providesDataForTestingIncreasePermissionRegularShare
+	 *
+	 * @param string $nodeType
+	 * @param int $currentPermission
+	 * @param string $updatePermissionTo
+	 */
+	public function testRegularShareRecipientCannotIncreasePermission($nodeType, $currentPermission, $updatePermissionTo) {
+		$ocs = $this->mockFormatShare();
+
+		$share = \OC::$server->getShareManager()->newShare();
+		$share
+			->setId(42)
+			->setSharedBy($this->currentUser->getUID())
+			->setShareOwner('anotheruser')
+			->setShareType(Share::SHARE_TYPE_USER)
+			->setSharedWith('user1')
+			->setPermissions($currentPermission);
+
+		if ($nodeType === 'file') {
+			$file = $this->createMock(File::class);
+			$share->setNode($file);
+			$share->setTarget('/testFile');
+		} else {
+			$folder = $this->createMock(Folder::class);
+			$share->setNode($folder);
+			$share->setTarget('/testFolder');
+		}
+
+		$this->shareManager->method('getShareById')->with('ocinternal:42')->willReturn($share);
+
+		$this->request
+			->method('getParam')
+			->will($this->returnValueMap([
+				['permissions', null, $updatePermissionTo],
+			]));
+
+		$result = $ocs->updateShare(42);
+		$this->assertEquals(400, $result->getStatusCode());
+		$this->assertEquals('Cannot change permission of ' . $share->getTarget(), $result->getMeta()['message']);
+	}
+
 	/**
 	 * @dataProvider publicUploadParamsProvider
 	 */
